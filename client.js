@@ -23,7 +23,7 @@ function recoverAccount(mfaToken) {
 function enrollAuthenticator(mfaToken) {
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     mfa_token: mfaToken
   };
   
@@ -43,22 +43,67 @@ function enrollAuthenticator(mfaToken) {
     console.log('QR IMAGE:');
     console.log(qrImage)
     
-    confirmEnrollment(mfaToken, json.bind_code)
+    console.log('ASSOCIATED, NOW DO EXCHANGE?');
+    
+    var otpQuestion = [
+      {
+          type: 'input',
+          name: 'otp',
+          message: 'Confirm OTP Code?',
+      }
+    ]
+  
+    var cnfQuestion = [
+      {
+          type: 'input',
+          name: 'secret',
+          message: 'Confirm Secret sent to device?',
+      }
+    ]
+    
+    if (json.authenticator_type == 'otp') {
+      inquirer.prompt(otpQuestion).then(function (answers) {
+          // Use user feedback for... whatever!!
+          console.log(answers)
+      
+          postOTP(answers.otp, mfaToken);
+      });
+    } else {
+      if (json.binding_method == 'prompt') {
+        inquirer.prompt(cnfQuestion).then(function (answers) {
+            // Use user feedback for... whatever!!
+            console.log(answers)
+      
+            pollStatus(json.oob_code, mfaToken, answers.secret);
+        });
+      } else {
+        pollStatus(json.oob_code, mfaToken);
+      }
+      
+      
+      
+    }
+    
+    //confirmEnrollment(mfaToken, json.bind_code, json.alternate_authenticator_types);
   });
 }
 
-function confirmEnrollment(mfaToken, bindCode) {
-  pollEnrollment(mfaToken, bindCode)
+function confirmEnrollment(mfaToken, bindCode, altTypes) {
+  pollEnrollment(mfaToken, bindCode, altTypes)
 }
 
-function pollEnrollment(mfaToken, bindCode) {
+var failCount = 0;
+
+function pollEnrollment(mfaToken, bindCode, altTypes) {
   
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     mfa_token: mfaToken,
     bind_code: bindCode
   };
+  
+  
   
   
   request.post('http://127.0.0.1:8084/bind', { body: JSON.stringify(form), headers: {'content-type': 'application/json'} }, function(err, res, body) {
@@ -74,8 +119,62 @@ function pollEnrollment(mfaToken, bindCode) {
     if (json.error == 'operation_pending') {
       console.log('PENDING, WATING...');
       
-      setTimeout(function() { pollEnrollment(mfaToken, bindCode); }, 3000);
+      failCount++;
+      //if (failCount >= 2) {
+      if (0) {
+        console.log('TRY THE ALT TYPES...');
+        console.log(altTypes);
+        
+        var otpQuestion = [
+          {
+              type: 'input',
+              name: 'otp',
+              message: 'OTP Code?',
+          }
+        ]
+        
+        inquirer.prompt(otpQuestion).then(function (answers) {
+            // Use user feedback for... whatever!!
+            console.log(answers)
+      
+            enrollOtp(answers.otp, mfaToken, bindCode);
+        });
+        
+        return;
+      }
+      
+      setTimeout(function() { pollEnrollment(mfaToken, bindCode, altTypes); }, 3000);
     }
+  });
+  
+}
+
+function enrollOtp(otp, mfaToken, bindCode) {
+  
+  var form = {
+    authenticator_type: 'otp',
+    client_id: '1',
+    client_secret: 'SECRET',
+    mfa_token: mfaToken,
+    bind_code: bindCode,
+    otp: otp
+  };
+  
+  
+  
+  
+  request.post('http://127.0.0.1:8084/bind', { body: JSON.stringify(form), headers: {'content-type': 'application/json'} }, function(err, res, body) {
+    console.log(err);
+    if (!res) { return; }
+  
+    console.log('-- ENROLL RESPONSE');
+    console.log(res.statusCode);
+    console.log(body);
+    console.log('---')
+    
+    var json = JSON.parse(body);
+    console.log('ENROLLED OTP!');
+    console.log(json);
   });
   
 }
@@ -83,7 +182,7 @@ function pollEnrollment(mfaToken, bindCode) {
 function challengeAuthenticator(mfaToken) {
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     mfa_token: mfaToken
   };
   
@@ -155,10 +254,11 @@ function challengeAuthenticator(mfaToken) {
 function exchangePassword(username, password) {
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     grant_type: 'password',
     username: username,
-    password: password
+    password: password,
+    scope: 'foo bar'
   };
   
   request.post('http://127.0.0.1:8082/token', { form: form }, function(err, res, body) {
@@ -181,7 +281,7 @@ function exchangePassword(username, password) {
 }
 
 
-exchangePassword('jared.hanson', 'K8LP7TdqJfZkbD');
+exchangePassword('jared.hanson', 'PASSWORD');
 //enrollAuthenticator('xxxxx');
 //confirmEnrollment('xxxxx');
 return;
@@ -191,7 +291,7 @@ return;
 function postLookup(code, mfaToken) {
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     grant_type: 'http://auth0.com/oauth/grant-type/mfa-recovery-code',
     recovery_code: code,
     mfa_token: mfaToken
@@ -210,7 +310,7 @@ function postLookup(code, mfaToken) {
 function postOTP(otp, mfaToken) {
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     grant_type: 'http://auth0.com/oauth/grant-type/mfa-otp',
     otp: otp,
     mfa_token: mfaToken
@@ -231,7 +331,7 @@ function pollStatus(txid, mfaToken, secret) {
   
   var form = {
     client_id: '1',
-    client_secret: 'kq61yrn2lknnvri',
+    client_secret: 'SECRET',
     grant_type: 'http://auth0.com/oauth/grant-type/mfa-oob',
     oob_code: txid,
     mfa_token: mfaToken
